@@ -18,7 +18,6 @@ Auteur: Raphaël d'Assignies (dassignies.law)
 Date de création: Avril 2025
 """
 
-import os
 import json
 import logging
 import asyncio
@@ -27,20 +26,15 @@ from functools import wraps
 from datetime import datetime
 
 import requests
-from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import Tool, TextContent
+
+# Import configuration from config.py
+from src.config import API_KEY, API_URL
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("legifrance_mcp")
-
-# Chargement des variables d'environnement
-load_dotenv()
-
-# Constantes et configuration
-API_KEY = os.getenv('DEV_API_KEY')
-API_URL = os.getenv('DEV_API_URL')
 
 if not API_KEY or not API_URL:
     raise ValueError("Les variables d'environnement LAB_DASSIGNIES_API_KEY et LEGAL_API_URL doivent être définies")
@@ -57,10 +51,10 @@ server = Server("legifrance")
 def clean_dict(d: dict) -> dict:
     """
     Supprime les clés dont la valeur est None pour optimiser les requêtes API.
-    
+
     Args:
         d (dict): Dictionnaire à nettoyer
-        
+
     Returns:
         dict: Dictionnaire sans les valeurs None
     """
@@ -69,7 +63,7 @@ def clean_dict(d: dict) -> dict:
 def rate_limit(calls: int, period: float):
     """
     Décorateur pour limiter le nombre d'appels API dans une période donnée.
-    
+
     Args:
         calls (int): Nombre maximum d'appels autorisés
         period (float): Période en secondes
@@ -104,20 +98,20 @@ def rate_limit(calls: int, period: float):
 async def make_api_request(endpoint: str, data: Dict) -> Dict:
     """
     Fonction générique pour effectuer des requêtes API avec gestion d'erreurs.
-    
+
     Args:
         endpoint (str): Point de terminaison de l'API (sans le domaine)
         data (Dict): Données à envoyer dans la requête
-    
+
     Returns:
         Dict: Résultat de la requête ou message d'erreur
     """
     try:
         url = f"{API_URL}{endpoint}"
         clean_data = clean_dict(data)
-        
+
         logger.info(f"Envoi de requête à {endpoint} avec les données: {json.dumps(clean_data)}")
-        
+
         res = requests.post(
             url,
             headers=HEADERS,
@@ -125,11 +119,11 @@ async def make_api_request(endpoint: str, data: Dict) -> Dict:
             json=clean_data,
             timeout=30  # Timeout explicite pour éviter les blocages
         )
-        
+
 
         content_type = res.headers.get("Content-Type", "")
         response_body = res.text      
-        
+
         if res.ok:
             try:
                 result = res.json()
@@ -139,23 +133,23 @@ async def make_api_request(endpoint: str, data: Dict) -> Dict:
             if isinstance(result, str):
                 result += "\n\n🔗 Mentionne systématiquement le lien officiel dans ta réponse pour pouvoir y accéder."
             return result
-        
+
         if res.status_code == 422 or res.status_code == 404:
             if "text/plain" in content_type:
                 return {"error": response_body}
-        
+
         if "application/json" in content_type:
            try:
                return {"error": res.json()}
            except requests.exceptions.JSONDecodeError:
                return {"error": response_body}
-        
+
         return {"error": f"Erreur {res.status_code} : {response_body}"}
-            
+
     except requests.exceptions.RequestException as e:
         logger.error("Erreur de connexion à l'API", exc_info=True)
         return {"error": f"Erreur de connexion : {e}"}
-        
+
     except Exception as e:
         # Uniquement pour les erreurs de connexion ou autres problèmes graves
         logger.error(f"Erreur de connexion: {str(e)}")
@@ -171,14 +165,14 @@ async def list_tools() -> List[Tool]:
             Recherche un article dans un texte légal (loi, ordonnance, décret, arrêté)
             par le numéro du texte et le numéro de l'article. On peut également rechercher 
             des mots clés ("mots clés" séparés par des espaces) dans une loi précise (n° de loi)
-            
+
             Paramètres:
                 - text_id: Le numéro du texte (format AAAA-NUMERO)
                 - search: Mots-clés de recherche ou numéro d'article
                 - champ: Champ de recherche ("ALL", "TITLE", "TABLE", "NUM_ARTICLE", "ARTICLE")
                 - type_recherche: Type de recherche ("TOUS_LES_MOTS_DANS_UN_CHAMP", "EXPRESSION_EXACTE", "AU_MOINS_UN_MOT")
                 - page_size: Nombre de résultats (max 100)
-                
+
             Exemples:
                 - Pour l'article 7 de la loi 78-17: {text_id="78-17", search="7", champ="NUM_ARTICLE"}
                 - On cherche les conditions de validité de la signature électronique : {search="signature électronique validité conditions"}
@@ -198,7 +192,7 @@ async def list_tools() -> List[Tool]:
             name="rechercher_code",
             description="""
             Recherche des articles juridiques dans les codes de loi français.
-            
+
             Paramètres:
                 - search: Termes de recherche (ex: "contrat de travail", "légitime défense")
                 - code_name: Nom du code juridique (ex: "Code civil", "Code du travail")
@@ -207,7 +201,7 @@ async def list_tools() -> List[Tool]:
                 - type_recherche: Type de recherche
                 - page_size: Nombre de résultats (max 100)
                 - fetch_all: Récupérer tous les résultats
-                
+
             Exemples:
                 - Pour le PACS dans le Code civil: {search="pacte civil de solidarité", code_name="Code civil"}
             """,
@@ -229,7 +223,7 @@ async def list_tools() -> List[Tool]:
             name="rechercher_jurisprudence_judiciaire",
             description="""
             Recherche des jurisprudences judiciaires dans la base JURI de Legifrance.
-            
+
             Paramètres:
                 - search: Termes ou numéros d'affaires à rechercher
                 - publication_bulletin: Si publiée au bulletin ['T'] sinon ['F']
@@ -240,13 +234,13 @@ async def list_tools() -> List[Tool]:
                 - fetch_all: Récupérer tous les résultats
                 - juri_keys: Mots-clés pour extraire des champs comme 'titre'. Par défaut, le titre, le texte et les résumés sont extraits
                 - juridiction_judiciaire: Liste des juridictions à inclure parmi ['Cour de cassation', 'Juridictions d'appel', ]
-            
+
             Exemples : 
                 - Obtenir un panorama de la jurisprudence par mots clés : 
                     search = "tierce opposition salarié société liquidation", page_size=100, juri_keys=['titre']
                 - Obtenir toutes les jurisprudences sur la signature électronique : 
                     search = "signature électronique", fetch_all=True, juri_keys=['titre', 'sommaire']
-            
+
             """,
             inputSchema={
                 "type": "object",
@@ -271,39 +265,39 @@ async def list_tools() -> List[Tool]:
 async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
     """
     Gère les appels aux outils juridiques.
-    
+
     Args:
         name (str): Nom de l'outil à appeler
         arguments (Any): Arguments à passer à l'outil
-    
+
     Returns:
         Sequence[TextContent]: Résultat de l'appel
     """
     try:
         logger.info(f"Appel de l'outil: {name} avec arguments: {json.dumps(arguments)}")
-        
+
         if name == "rechercher_dans_texte_legal":
             result = await make_api_request("loda", arguments)
-            
+
         elif name == "rechercher_code":
             result = await make_api_request("code", arguments)
-            
+
         elif name == "rechercher_jurisprudence_judiciaire":
             result = await make_api_request("juri", arguments)
-            
+
         else:
             raise ValueError(f"Outil inconnu: {name}")
-        
+
         # Détection et traitement des erreurs
         if isinstance(result, dict) and "error" in result:
             return [TextContent(type="text", text=result["error"])]
-        
+
         # Formatage du résultat
         if isinstance(result, str):
             return [TextContent(type="text", text=result)]
         else:
             return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
-            
+
     except Exception as e:
         error_message = f"Erreur lors de l'exécution de {name}: {str(e)}"
         logger.error(error_message)
@@ -313,11 +307,11 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
 async def get_prompt(prompt_name: str, inputs: dict) -> Dict:
     """
     Retourne un prompt prédéfini pour une utilisation spécifique.
-    
+
     Args:
         prompt_name (str): Nom du prompt à récupérer
         inputs (dict): Entrées pour le prompt
-    
+
     Returns:
         Dict: Structure du prompt
     """
