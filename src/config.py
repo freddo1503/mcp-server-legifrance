@@ -1,23 +1,22 @@
-import os
+"""
+Legacy configuration module.
 
-from dotenv import load_dotenv
+This module is maintained for backward compatibility.
+It imports and re-exports configuration values from the new configuration module.
+"""
 
-# Load environment variables from .env file
-load_dotenv()
+from src.config.settings import settings
 
 # Legifrance API configuration
-LEGIFRANCE_API_URL = os.getenv(
-    "LEGIFRANCE_API_URL",
-    "https://sandbox-api.piste.gouv.fr/dila/legifrance/lf-engine-app",
-)
-LEGIFRANCE_CLIENT_ID = os.getenv("LEGIFRANCE_CLIENT_ID")
-LEGIFRANCE_CLIENT_SECRET = os.getenv("LEGIFRANCE_CLIENT_SECRET")
-LEGIFRANCE_TOKEN_URL = os.getenv("LEGIFRANCE_TOKEN_URL")
+LEGIFRANCE_API_URL = settings.legifrance.api_url
+LEGIFRANCE_CLIENT_ID = settings.legifrance.client_id
+LEGIFRANCE_CLIENT_SECRET = settings.legifrance.client_secret
+LEGIFRANCE_TOKEN_URL = settings.legifrance.token_url
 
 # MCP Server configuration
-MCP_SERVER_HOST = os.getenv("MCP_SERVER_HOST", "localhost")
-MCP_SERVER_PORT = int(os.getenv("MCP_SERVER_PORT", "8080"))
+MCP_SERVER_HOST = settings.server.host
+MCP_SERVER_PORT = settings.server.port
 
 # Development API configuration
-API_KEY = os.getenv("DEV_API_KEY")
-API_URL = os.getenv("DEV_API_URL")
+API_KEY = settings.api.key
+API_URL = settings.api.url
