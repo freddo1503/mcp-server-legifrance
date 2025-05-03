@@ -3,21 +3,22 @@ from datetime import datetime, timedelta
 from typing import Any, TypeVar
 
 import httpx
-from pydantic import BaseModel, Field
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+from pydantic import BaseModel
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
 
 class APIError(Exception):
     """Base class for API-related errors."""
+
     def __init__(
-        self, 
-        message: str, 
-        details: dict[str, Any] | None = None, 
-        original_exception: Exception | None = None
+        self,
+        message: str,
+        details: dict[str, Any] | None = None,
+        original_exception: Exception | None = None,
     ):
         self.message = message
         self.details = details or {}
@@ -27,21 +28,25 @@ class APIError(Exception):
 
 class AuthenticationError(APIError):
     """Error raised when authentication fails."""
+
     pass
 
 
 class DataParsingError(APIError):
     """Error raised when data parsing fails."""
+
     pass
 
 
 class LegifranceError(APIError):
     """Error raised for Legifrance-specific errors."""
+
     pass
 
 
 class TokenInfo(BaseModel):
     """Information about an OAuth2 token."""
+
     access_token: str
     expires_at: datetime | None = None
 
@@ -92,7 +97,8 @@ class LegifranceApiClient:
             self.token_info = self._get_access_token()
         else:
             raise ValueError(
-                "Either a token must be provided or client credentials and token_url must be specified."
+                "Either a token must be provided or client credentials and "
+                "token_url must be specified."
             )
 
         self._headers["Authorization"] = f"Bearer {self.token_info.access_token}"
@@ -124,8 +130,13 @@ class LegifranceApiClient:
 
     def _process_token_response(self, token_data: dict[str, Any]) -> TokenInfo:
         """Process token response data and create a TokenInfo object."""
-        if not token_data.get("access_token") or token_data.get("access_token") == "null":
-            raise AuthenticationError("Failed to obtain access token", details={"response": token_data})
+        if (
+            not token_data.get("access_token")
+            or token_data.get("access_token") == "null"
+        ):
+            raise AuthenticationError(
+                "Failed to obtain access token", details={"response": token_data}
+            )
 
         # Calculate token expiry with a 60-second safety margin
         expires_in = int(token_data.get("expires_in", 3600))
@@ -148,7 +159,10 @@ class LegifranceApiClient:
             LegifranceError: For other errors
         """
         if isinstance(e, httpx.HTTPStatusError):
-            details = {"status_code": e.response.status_code, "response": e.response.text}
+            details = {
+                "status_code": e.response.status_code,
+                "response": e.response.text,
+            }
 
             if e.response.status_code in (401, 403):
                 raise AuthenticationError(
@@ -158,7 +172,8 @@ class LegifranceApiClient:
                 ) from e
 
             raise LegifranceError(
-                f"Error obtaining Legifrance access token: HTTP {e.response.status_code}",
+                f"Error obtaining Legifrance access token: "
+                f"HTTP {e.response.status_code}",
                 details=details,
                 original_exception=e,
             ) from e
@@ -206,7 +221,8 @@ class LegifranceApiClient:
 
         except Exception as e:
             self._handle_token_error(e)
-            raise  # This should never be reached
+            # This should never be reached
+            raise
 
     @retry(
         stop=stop_after_attempt(3),
@@ -239,12 +255,13 @@ class LegifranceApiClient:
 
         except Exception as e:
             self._handle_token_error(e)
-            raise  # This should never be reached
+            # This should never be reached
+            raise
 
     def _is_token_expired(self) -> bool:
         """Check if the current token is expired."""
         return (
-            self.token_info.expires_at is not None 
+            self.token_info.expires_at is not None
             and datetime.now() > self.token_info.expires_at
         )
 
@@ -288,7 +305,10 @@ class LegifranceApiClient:
             LegifranceError: For other errors
         """
         if isinstance(e, httpx.HTTPStatusError):
-            details = {"status_code": e.response.status_code, "response": e.response.text}
+            details = {
+                "status_code": e.response.status_code,
+                "response": e.response.text,
+            }
 
             if e.response.status_code in (401, 403):
                 raise AuthenticationError(
@@ -367,7 +387,8 @@ class LegifranceApiClient:
 
         except Exception as e:
             self._handle_request_error(e)
-            raise  # This should never be reached due to _handle_request_error always raising
+            # This should never be reached due to _handle_request_error always raising
+            raise
 
     @retry(
         stop=stop_after_attempt(3),
@@ -415,7 +436,8 @@ class LegifranceApiClient:
 
         except Exception as e:
             self._handle_request_error(e, method_name="async request")
-            raise  # This should never be reached due to _handle_request_error always raising
+            # This should never be reached due to _handle_request_error always raising
+            raise
 
     def get(
         self,
@@ -530,7 +552,7 @@ class LegifranceApiClient:
         if self._async_client is not None and not self._async_client.is_closed:
             await self._async_client.aclose()
 
-    def __enter__(self) -> 'LegifranceApiClient':
+    def __enter__(self) -> "LegifranceApiClient":
         """Support for context manager protocol."""
         return self
 
@@ -538,7 +560,7 @@ class LegifranceApiClient:
         """Close the client when exiting the context manager."""
         self.client.close()
 
-    async def __aenter__(self) -> 'LegifranceApiClient':
+    async def __aenter__(self) -> "LegifranceApiClient":
         """Support for async context manager protocol."""
         return self
 
