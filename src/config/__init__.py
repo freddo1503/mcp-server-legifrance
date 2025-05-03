@@ -9,16 +9,16 @@ This module provides a centralized configuration system that:
 
 Usage:
     from src.config import settings
-    
+
     # Access configuration values
     api_url = settings.api.url
-    
+
     # Access logger
     from src.config import logger
     logger.info("Application started")
 """
 
+from src.config.logging import configure_logging, logger
 from src.config.settings import settings
-from src.config.logging import logger, configure_logging
 
-__all__ = ["settings", "logger", "configure_logging"]
+__all__ = ["configure_logging", "logger", "settings"]

@@ -17,20 +17,19 @@ from datetime import datetime
 from functools import wraps
 from typing import Any
 
-import requests
 import mcp.server.stdio
+import requests
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
-from src.config import settings, logger
+from src.config import logger, settings
 
 # Utilisation de la configuration chargée via le module de configuration
 tools_config = settings.yaml_config
 
 if not settings.api.key or not settings.api.url:
     raise ValueError(
-        "Les variables d'environnement DEV_API_KEY et DEV_API_URL "
-        "doivent être définies"
+        "Les variables d'environnement DEV_API_KEY et DEV_API_URL doivent être définies"
     )
 
 HEADERS = {"accept": "*/*", "Content-Type": "application/json"}
@@ -162,7 +161,7 @@ async def list_tools() -> list[Tool]:
     """Liste tous les outils disponibles dans ce serveur MCP."""
     tools_list = []
 
-    for tool_name, tool_config in tools_config.tools.items():
+    for _tool_name, tool_config in tools_config.tools.items():
         tools_list.append(
             Tool(
                 name=tool_config.name,
