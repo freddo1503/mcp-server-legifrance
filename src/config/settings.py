@@ -94,7 +94,7 @@ class ToolConfig(BaseModel):
 
     name: str
     description: str
-    input_schema: dict[str, Any]
+    input_schema: dict[str, Any] = Field(alias="inputSchema")
 
 
 class PromptMessage(BaseModel):
@@ -166,8 +166,8 @@ def create_settings() -> Settings:
             port=int(os.getenv("MCP_SERVER_PORT", str(ServerSettings().port))),
         ),
         api=ApiSettings(
-            key=os.getenv("DEV_API_KEY", ""),
-            url=os.getenv("DEV_API_URL", ""),
+            key=os.getenv("DEV_API_KEY", "development_key"),
+            url=os.getenv("DEV_API_URL", "development_key"),
         ),
         logging=LoggingSettings(
             level=os.getenv("LOG_LEVEL", LoggingSettings().level),

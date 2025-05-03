@@ -4,83 +4,50 @@ Test script for the new configuration module.
 This script verifies that the new configuration module works as expected.
 """
 
-import os
-import sys
-from pathlib import Path
-
-# Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Set some environment variables for testing
-os.environ["DEV_API_KEY"] = "test_api_key"
-os.environ["DEV_API_URL"] = "https://test-api.example.com"
-os.environ["LOG_LEVEL"] = "DEBUG"
-
-# Import the configuration module
-from src.config import settings, logger, configure_logging
+from src.config import configure_logging, logger, settings
 
 
 def test_settings():
     """Test that the settings are loaded correctly."""
-    print("\n=== Testing Settings ===")
-    
     # Test environment variable loading
-    print(f"API Key: {settings.api.key}")
-    print(f"API URL: {settings.api.url}")
-    
+    assert settings.api.key == "mock_api_key"
+    assert settings.api.url == "mock_api_url"
+
     # Test default values
-    print(f"Server Host: {settings.server.host}")
-    print(f"Server Port: {settings.server.port}")
-    
+    assert settings.server.host is not None
+    assert settings.server.port is not None
+
     # Test YAML configuration loading
-    if settings.yaml_config:
-        print("\nYAML Configuration:")
-        print(f"Number of tools: {len(settings.yaml_config.tools)}")
-        print(f"Number of prompts: {len(settings.yaml_config.prompts)}")
-        
-        # Print the names of the tools
-        print("\nTool names:")
-        for tool_name in settings.yaml_config.tools:
-            print(f"- {tool_name}")
-    else:
-        print("\nYAML Configuration not loaded")
+    assert settings.yaml_config is not None
+    assert len(settings.yaml_config.tools) > 0
+    assert len(settings.yaml_config.prompts) > 0
+
+    # Verify specific tools exist
+    assert "rechercher_dans_texte_legal" in settings.yaml_config.tools
+    assert "rechercher_code" in settings.yaml_config.tools
+    assert "rechercher_jurisprudence_judiciaire" in settings.yaml_config.tools
 
 
-def test_logging():
+def test_logging(tmp_path):
     """Test that the logging system works."""
-    print("\n=== Testing Logging ===")
-    
+    # Use a temporary file for the log
+    log_file = tmp_path / "test_log.log"
+
     # Configure logging with file output for testing
-    configure_logging(
-        level="DEBUG",
-        file_enabled=True,
-        file_path="test_log.log"
-    )
-    
+    configure_logging(level="DEBUG", file_enabled=True, file_path=str(log_file))
+
     # Log some messages
     logger.debug("This is a debug message")
     logger.info("This is an info message")
     logger.warning("This is a warning message")
     logger.error("This is an error message")
-    
-    print("Logged messages to console and test_log.log")
-    
+
     # Check if the log file was created
-    log_file = Path("test_log.log")
-    if log_file.exists():
-        print(f"Log file created: {log_file.absolute()}")
-        
-        # Print the contents of the log file
-        print("\nLog file contents:")
-        with open(log_file, "r") as f:
-            for line in f.readlines():
-                print(line.strip())
-        
-        # Clean up
-        log_file.unlink()
-        print("\nLog file deleted")
+    assert log_file.exists(), "Log file was not created"
 
-
-if __name__ == "__main__":
-    test_settings()
-    test_logging()
+    # Check log file contents
+    log_content = log_file.read_text()
+    assert "DEBUG" in log_content, "Debug message not found in log"
+    assert "INFO" in log_content, "Info message not found in log"
+    assert "WARNING" in log_content, "Warning message not found in log"
+    assert "ERROR" in log_content, "Error message not found in log"

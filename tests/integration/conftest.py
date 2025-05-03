@@ -1,11 +1,12 @@
 import pytest
-from src.config import (
-    LEGIFRANCE_API_URL,
-    LEGIFRANCE_CLIENT_ID,
-    LEGIFRANCE_CLIENT_SECRET,
-    LEGIFRANCE_TOKEN_URL,
-)
+
+from src.config import settings
 from src.services.api_client import LegifranceApiClient
+
+LEGIFRANCE_API_URL = settings.legifrance.api_url
+LEGIFRANCE_CLIENT_ID = settings.legifrance.client_id
+LEGIFRANCE_CLIENT_SECRET = settings.legifrance.client_secret
+LEGIFRANCE_TOKEN_URL = settings.legifrance.token_url
 
 
 @pytest.fixture(scope="session")

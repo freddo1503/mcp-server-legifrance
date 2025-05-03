@@ -12,12 +12,9 @@ Date de création: Avril 2025
 
 import asyncio
 import json
-import logging
-import yaml
 from collections.abc import Sequence
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
 from typing import Any
 
 import requests
@@ -25,20 +22,14 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
-from src.config import API_KEY, API_URL
+from src.config import settings, logger
 
-# Chargement de la configuration des outils depuis le fichier YAML
-config_path = Path(__file__).parent / "config" / "tools_config.yml"
-with open(config_path, "r", encoding="utf-8") as f:
-    tools_config = yaml.safe_load(f)
+# Utilisation de la configuration chargée via le module de configuration
+tools_config = settings.yaml_config
 
-# Configuration du logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("legifrance_mcp")
-
-if not API_KEY or not API_URL:
+if not settings.api.key or not settings.api.url:
     raise ValueError(
-        "Les variables d'environnement LAB_DASSIGNIES_API_KEY et LEGAL_API_URL "
+        "Les variables d'environnement DEV_API_KEY et DEV_API_URL "
         "doivent être définies"
     )
 
@@ -113,7 +104,7 @@ async def make_api_request(endpoint: str, data: dict) -> dict:
         Dict: Résultat de la requête ou message d'erreur
     """
     try:
-        url = f"{API_URL}{endpoint}"
+        url = f"{settings.api.url}{endpoint}"
         clean_data = clean_dict(data)
 
         logger.info(
@@ -123,7 +114,7 @@ async def make_api_request(endpoint: str, data: dict) -> dict:
         res = requests.post(
             url,
             headers=HEADERS,
-            params={"api_key": API_KEY},
+            params={"api_key": settings.api.key},
             json=clean_data,
             timeout=30,  # Timeout explicite pour éviter les blocages
         )
@@ -171,12 +162,12 @@ async def list_tools() -> list[Tool]:
     """Liste tous les outils disponibles dans ce serveur MCP."""
     tools_list = []
 
-    for tool_name, tool_config in tools_config["tools"].items():
+    for tool_name, tool_config in tools_config.tools.items():
         tools_list.append(
             Tool(
-                name=tool_config["name"],
-                description=tool_config["description"],
-                inputSchema=tool_config["inputSchema"],
+                name=tool_config.name,
+                description=tool_config.description,
+                inputSchema=tool_config.input_schema,
             )
         )
 
@@ -243,21 +234,21 @@ async def get_prompt(prompt_name: str, inputs: dict) -> dict:
     Returns:
         Dict: Structure du prompt
     """
-    if prompt_name in tools_config["prompts"]:
-        prompt_config = tools_config["prompts"][prompt_name]
+    if prompt_name in tools_config.prompts:
+        prompt_config = tools_config.prompts[prompt_name]
 
         # Remplacer les variables dans le texte du prompt
         messages = []
-        for message in prompt_config["messages"]:
+        for message in prompt_config.messages:
             content_list = []
-            for content_item in message["content"]:
+            for content_item in message.content:
                 text = content_item["text"]
                 # Remplacer les variables dans le texte
                 for key, value in inputs.items():
                     text = text.replace(f"{{{key}}}", str(value))
                 content_list.append({"type": content_item["type"], "text": text})
 
-            messages.append({"role": message["role"], "content": content_list})
+            messages.append({"role": message.role, "content": content_list})
 
         return {"messages": messages}
     else:

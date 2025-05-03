@@ -1,30 +1,21 @@
-import os
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-os.environ["DEV_API_KEY"] = "mock_api_key"
-os.environ["DEV_API_URL"] = "mock_api_url"
-
 from src.mcp_server import get_prompt, list_tools, tools_config
+
+# Environment variables are set in conftest.py
 
 
 def test_yaml_config_loaded():
     """Test that the YAML configuration is loaded correctly."""
     assert tools_config is not None
-    assert "tools" in tools_config
-    assert "prompts" in tools_config
+    assert hasattr(tools_config, "tools")
+    assert hasattr(tools_config, "prompts")
 
-    assert "rechercher_dans_texte_legal" in tools_config["tools"]
-    assert "rechercher_code" in tools_config["tools"]
-    assert "rechercher_jurisprudence_judiciaire" in tools_config["tools"]
+    assert "rechercher_dans_texte_legal" in tools_config.tools
+    assert "rechercher_code" in tools_config.tools
+    assert "rechercher_jurisprudence_judiciaire" in tools_config.tools
 
-    assert "agent_juridique_expert" in tools_config["prompts"]
-
-    print("✅ YAML configuration loaded correctly")
+    assert "agent_juridique_expert" in tools_config.prompts
 
 
 @pytest.mark.asyncio
@@ -38,8 +29,6 @@ async def test_list_tools():
     assert "rechercher_dans_texte_legal" in tool_names
     assert "rechercher_code" in tool_names
     assert "rechercher_jurisprudence_judiciaire" in tool_names
-
-    print("✅ list_tools function returns the correct tools")
 
 
 @pytest.mark.asyncio
