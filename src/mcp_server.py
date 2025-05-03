@@ -1,51 +1,52 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Apr 19 16:27:37 2025
-
-@author: legalchain
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Serveur MCP pour l'accès à Legifrance
 -------------------------------------
 Facilite l'accès aux ressources juridiques françaises via l'API Legifrance
 en utilisant le protocole Model Context (MCP).
 
+Created on Sat Apr 19 16:27:37 2025
 Auteur: Raphaël d'Assignies (dassignies.law)
 Date de création: Avril 2025
 """
 
+import asyncio
 import json
 import logging
-import asyncio
-from typing import Any, Dict, Optional, List, Sequence
-from functools import wraps
+import yaml
+from collections.abc import Sequence
 from datetime import datetime
+from functools import wraps
+from pathlib import Path
+from typing import Any
 
 import requests
+import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
-# Import configuration from config.py
 from src.config import API_KEY, API_URL
+
+# Chargement de la configuration des outils depuis le fichier YAML
+config_path = Path(__file__).parent / "config" / "tools_config.yml"
+with open(config_path, "r", encoding="utf-8") as f:
+    tools_config = yaml.safe_load(f)
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("legifrance_mcp")
 
 if not API_KEY or not API_URL:
-    raise ValueError("Les variables d'environnement LAB_DASSIGNIES_API_KEY et LEGAL_API_URL doivent être définies")
+    raise ValueError(
+        "Les variables d'environnement LAB_DASSIGNIES_API_KEY et LEGAL_API_URL "
+        "doivent être définies"
+    )
 
-HEADERS = {
-    "accept": "*/*",
-    "Content-Type": "application/json"
-}
+HEADERS = {"accept": "*/*", "Content-Type": "application/json"}
 
 # Création du serveur MCP
 server = Server("legifrance")
+
 
 # Utilitaires
 def clean_dict(d: dict) -> dict:
@@ -60,6 +61,7 @@ def clean_dict(d: dict) -> dict:
     """
     return {k: v for k, v in d.items() if v is not None}
 
+
 def rate_limit(calls: int, period: float):
     """
     Décorateur pour limiter le nombre d'appels API dans une période donnée.
@@ -68,6 +70,7 @@ def rate_limit(calls: int, period: float):
         calls (int): Nombre maximum d'appels autorisés
         period (float): Période en secondes
     """
+
     def decorator(func):
         last_reset = datetime.now()
         calls_made = 0
@@ -92,10 +95,13 @@ def rate_limit(calls: int, period: float):
 
             calls_made += 1
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
-async def make_api_request(endpoint: str, data: Dict) -> Dict:
+
+async def make_api_request(endpoint: str, data: dict) -> dict:
     """
     Fonction générique pour effectuer des requêtes API avec gestion d'erreurs.
 
@@ -110,19 +116,20 @@ async def make_api_request(endpoint: str, data: Dict) -> Dict:
         url = f"{API_URL}{endpoint}"
         clean_data = clean_dict(data)
 
-        logger.info(f"Envoi de requête à {endpoint} avec les données: {json.dumps(clean_data)}")
+        logger.info(
+            f"Envoi de requête à {endpoint} avec les données: {json.dumps(clean_data)}"
+        )
 
         res = requests.post(
             url,
             headers=HEADERS,
             params={"api_key": API_KEY},
             json=clean_data,
-            timeout=30  # Timeout explicite pour éviter les blocages
+            timeout=30,  # Timeout explicite pour éviter les blocages
         )
 
-
         content_type = res.headers.get("Content-Type", "")
-        response_body = res.text      
+        response_body = res.text
 
         if res.ok:
             try:
@@ -131,7 +138,10 @@ async def make_api_request(endpoint: str, data: Dict) -> Dict:
                 result = response_body  # fallback sur le texte brut
 
             if isinstance(result, str):
-                result += "\n\n🔗 Mentionne systématiquement le lien officiel dans ta réponse pour pouvoir y accéder."
+                result += (
+                    "\n\n🔗 Mentionne systématiquement le lien officiel "
+                    "dans ta réponse pour pouvoir y accéder."
+                )
             return result
 
         if res.status_code == 422 or res.status_code == 404:
@@ -139,10 +149,10 @@ async def make_api_request(endpoint: str, data: Dict) -> Dict:
                 return {"error": response_body}
 
         if "application/json" in content_type:
-           try:
-               return {"error": res.json()}
-           except requests.exceptions.JSONDecodeError:
-               return {"error": response_body}
+            try:
+                return {"error": res.json()}
+            except requests.exceptions.JSONDecodeError:
+                return {"error": response_body}
 
         return {"error": f"Erreur {res.status_code} : {response_body}"}
 
@@ -152,113 +162,26 @@ async def make_api_request(endpoint: str, data: Dict) -> Dict:
 
     except Exception as e:
         # Uniquement pour les erreurs de connexion ou autres problèmes graves
-        logger.error(f"Erreur de connexion: {str(e)}")
-        return {"error": f"Erreur de connexion: {str(e)}"}
+        logger.error(f"Erreur de connexion: {e!s}")
+        return {"error": f"Erreur de connexion: {e!s}"}
+
 
 @server.list_tools()
-async def list_tools() -> List[Tool]:
+async def list_tools() -> list[Tool]:
     """Liste tous les outils disponibles dans ce serveur MCP."""
-    return [
-        Tool(
-            name="rechercher_dans_texte_legal",
-            description="""
-            Recherche un article dans un texte légal (loi, ordonnance, décret, arrêté)
-            par le numéro du texte et le numéro de l'article. On peut également rechercher 
-            des mots clés ("mots clés" séparés par des espaces) dans une loi précise (n° de loi)
+    tools_list = []
 
-            Paramètres:
-                - text_id: Le numéro du texte (format AAAA-NUMERO)
-                - search: Mots-clés de recherche ou numéro d'article
-                - champ: Champ de recherche ("ALL", "TITLE", "TABLE", "NUM_ARTICLE", "ARTICLE")
-                - type_recherche: Type de recherche ("TOUS_LES_MOTS_DANS_UN_CHAMP", "EXPRESSION_EXACTE", "AU_MOINS_UN_MOT")
-                - page_size: Nombre de résultats (max 100)
-
-            Exemples:
-                - Pour l'article 7 de la loi 78-17: {text_id="78-17", search="7", champ="NUM_ARTICLE"}
-                - On cherche les conditions de validité de la signature électronique : {search="signature électronique validité conditions"}
-            """,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "search": {"type": "string"},
-                    "text_id": {"type": "string"},
-                    "champ": {"type": "string", "enum": ["ALL", "TITLE", "TABLE", "NUM_ARTICLE", "ARTICLE"]},
-                    "type_recherche": {"type": "string", "enum": ["TOUS_LES_MOTS_DANS_UN_CHAMP", "EXPRESSION_EXACTE", "AU_MOINS_UN_MOT"]},
-                    "page_size": {"type": "integer", "maximum": 100}
-                }
-            }
-        ),
-        Tool(
-            name="rechercher_code",
-            description="""
-            Recherche des articles juridiques dans les codes de loi français.
-
-            Paramètres:
-                - search: Termes de recherche (ex: "contrat de travail", "légitime défense")
-                - code_name: Nom du code juridique (ex: "Code civil", "Code du travail")
-                - champ: Champ de recherche ("ALL", "TITLE", "TABLE", "NUM_ARTICLE", "ARTICLE")
-                - sort: Tri des résultats ("PERTINENCE", "DATE_ASC", "DATE_DESC")
-                - type_recherche: Type de recherche
-                - page_size: Nombre de résultats (max 100)
-                - fetch_all: Récupérer tous les résultats
-
-            Exemples:
-                - Pour le PACS dans le Code civil: {search="pacte civil de solidarité", code_name="Code civil"}
-            """,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "search": {"type": "string"},
-                    "code_name": {"type": "string"},
-                    "champ": {"type": "string"},
-                    "sort": {"type": "string", "enum": ["PERTINENCE", "DATE_ASC", "DATE_DESC"]},
-                    "type_recherche": {"type": "string"},
-                    "page_size": {"type": "integer", "maximum": 100},
-                    "fetch_all": {"type": "boolean"}
-                },
-                "required": ["search", "code_name"]
-            }
-        ),
-        Tool(
-            name="rechercher_jurisprudence_judiciaire",
-            description="""
-            Recherche des jurisprudences judiciaires dans la base JURI de Legifrance.
-
-            Paramètres:
-                - search: Termes ou numéros d'affaires à rechercher
-                - publication_bulletin: Si publiée au bulletin ['T'] sinon ['F']
-                - sort: Tri des résultats ("PERTINENCE", "DATE_DESC", "DATE_ASC")
-                - champ: Champ de recherche ("ALL", "TITLE", "ABSTRATS", "TEXTE", "RESUMES", "NUM_AFFAIRE")
-                - type_recherche: Type de recherche
-                - page_size: Nombre de résultats (max. 100)
-                - fetch_all: Récupérer tous les résultats
-                - juri_keys: Mots-clés pour extraire des champs comme 'titre'. Par défaut, le titre, le texte et les résumés sont extraits
-                - juridiction_judiciaire: Liste des juridictions à inclure parmi ['Cour de cassation', 'Juridictions d'appel', ]
-
-            Exemples : 
-                - Obtenir un panorama de la jurisprudence par mots clés : 
-                    search = "tierce opposition salarié société liquidation", page_size=100, juri_keys=['titre']
-                - Obtenir toutes les jurisprudences sur la signature électronique : 
-                    search = "signature électronique", fetch_all=True, juri_keys=['titre', 'sommaire']
-
-            """,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "search": {"type": "string"},
-                    "publication_bulletin": {"type": "array", "items": {"type": "string", "enum": ["T", "F"]}},
-                    "sort": {"type": "string", "enum": ["PERTINENCE", "DATE_DESC", "DATE_ASC"]},
-                    "champ": {"type": "string"},
-                    "type_recherche": {"type": "string"},
-                    "page_size": {"type": "integer", "maximum": 100},
-                    "fetch_all": {"type": "boolean"},
-                    "juri_keys": {"type": "array", "items": {"type": "string"}},
-                    "juridiction_judiciaire": {"type": "array", "items": {"type": "string"}}
-                },
-                "required": ["search"]
-            }
+    for tool_name, tool_config in tools_config["tools"].items():
+        tools_list.append(
+            Tool(
+                name=tool_config["name"],
+                description=tool_config["description"],
+                inputSchema=tool_config["inputSchema"],
+            )
         )
-    ]
+
+    return tools_list
+
 
 @server.call_tool()
 @rate_limit(calls=5, period=1.0)  # Limite à 5 appels par seconde
@@ -296,15 +219,20 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
         if isinstance(result, str):
             return [TextContent(type="text", text=result)]
         else:
-            return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
+            return [
+                TextContent(
+                    type="text", text=json.dumps(result, indent=2, ensure_ascii=False)
+                )
+            ]
 
     except Exception as e:
-        error_message = f"Erreur lors de l'exécution de {name}: {str(e)}"
+        error_message = f"Erreur lors de l'exécution de {name}: {e!s}"
         logger.error(error_message)
         return [TextContent(type="text", text=error_message)]
 
+
 @server.get_prompt()
-async def get_prompt(prompt_name: str, inputs: dict) -> Dict:
+async def get_prompt(prompt_name: str, inputs: dict) -> dict:
     """
     Retourne un prompt prédéfini pour une utilisation spécifique.
 
@@ -315,46 +243,29 @@ async def get_prompt(prompt_name: str, inputs: dict) -> Dict:
     Returns:
         Dict: Structure du prompt
     """
-    if prompt_name == "agent_juridique_expert":
-        question = inputs.get("question", "")
-        return {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                "Tu es un agent juridique expert qui cite toujours ses sources dans le corps du texte.\n"
-                                "Lorsque tu effectues une recherche et que des références sont citées (article d'un code, numéro de décision de justice), "
-                                "tu dois systématiquement utiliser les outils à ta disposition pour aller chercher leur contenu et l'analyser. "
-                                "Tu peux utiliser tous les outils disponibles pour rechercher des informations dans les textes de loi français ou la jurisprudence.\n"
-                                "Tu dois :\n"
-                                "- Expliquer ton raisonnement étape par étape\n"
-                                "- Utiliser les outils pertinents\n"
-                                "- Fournir une synthèse claire, sourcée, avec des liens vers les articles. "
-                                "Tu dois impérativement récupérer les liens officiels et les citer."
-                            )
-                        }
-                    ]
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Voici ma question juridique : {question}"
-                        }
-                    ]
-                }
-            ]
-        }
+    if prompt_name in tools_config["prompts"]:
+        prompt_config = tools_config["prompts"][prompt_name]
+
+        # Remplacer les variables dans le texte du prompt
+        messages = []
+        for message in prompt_config["messages"]:
+            content_list = []
+            for content_item in message["content"]:
+                text = content_item["text"]
+                # Remplacer les variables dans le texte
+                for key, value in inputs.items():
+                    text = text.replace(f"{{{key}}}", str(value))
+                content_list.append({"type": content_item["type"], "text": text})
+
+            messages.append({"role": message["role"], "content": content_list})
+
+        return {"messages": messages}
     else:
         raise ValueError(f"Prompt inconnu: {prompt_name}")
 
+
 async def main():
     """Point d'entrée principal du serveur MCP."""
-    import mcp.server.stdio
     try:
         logger.info("Démarrage du serveur MCP Legifrance...")
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
@@ -364,8 +275,9 @@ async def main():
                 server.create_initialization_options(),
             )
     except Exception as e:
-        logger.error(f"Erreur fatale lors de l'exécution du serveur: {str(e)}")
+        logger.error(f"Erreur fatale lors de l'exécution du serveur: {e!s}")
         raise
+
 
 if __name__ == "__main__":
     asyncio.run(main())
