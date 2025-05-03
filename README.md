@@ -229,6 +229,20 @@ response = client.messages.create(
 )
 ```
 
+## Tests
+
+Pour exécuter les tests, utilisez pytest avec uv :
+
+```bash
+# Installer les dépendances de développement
+uv pip install -e ".[dev]"
+
+# Exécuter les tests
+uv run pytest tests
+```
+
+Cela exécutera tous les tests du projet, y compris les tests d'intégration. Les tests asynchrones nécessitent le plugin pytest-asyncio, qui est inclus dans les dépendances de développement.
+
 ## Limitations
 
 - Les requêtes sont limitées à 10 par seconde pour respecter les limites de l'API
