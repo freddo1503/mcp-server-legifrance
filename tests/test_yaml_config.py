@@ -1,8 +1,9 @@
 import pytest
 
-from src.mcp_server import get_prompt, list_tools, tools_config
+from src.config import settings
+from src.mcp_server import get_prompt, list_tools
 
-# Environment variables are set in conftest.py
+tools_config = settings.yaml_config
 
 
 def test_yaml_config_loaded():

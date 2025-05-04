@@ -6,6 +6,8 @@ import httpx
 from pydantic import BaseModel
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
 
+from src.config import settings
+
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
@@ -567,3 +569,26 @@ class LegifranceApiClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Close the async client when exiting the async context manager."""
         await self.aclose()
+
+
+_api_client = None
+
+
+def get_api_client() -> LegifranceApiClient:
+    """
+    Returns a singleton instance of the LegifranceApiClient.
+
+    The client is initialized with settings from the configuration.
+
+    Returns:
+        LegifranceApiClient: The API client instance
+    """
+    global _api_client
+    if _api_client is None:
+        _api_client = LegifranceApiClient(
+            base_url=settings.legifrance.api_url,
+            client_id=settings.legifrance.client_id,
+            client_secret=settings.legifrance.client_secret,
+            token_url=settings.legifrance.token_url,
+        )
+    return _api_client
