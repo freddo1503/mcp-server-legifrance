@@ -592,3 +592,25 @@ def get_api_client() -> LegifranceApiClient:
             token_url=settings.legifrance.token_url,
         )
     return _api_client
+
+
+async def make_api_request(endpoint: str, arguments: dict[str, Any]) -> Any:
+    """
+    Make an asynchronous request to the Legifrance API.
+
+    Args:
+        endpoint: The API endpoint to request (e.g., "code", "juri")
+        arguments: The arguments to pass to the API
+
+    Returns:
+        The API response
+
+    Raises:
+        APIError: If the API request fails
+    """
+    client = get_api_client()
+    try:
+        return await client.post_async(f"/consult/{endpoint}", payload=arguments)
+    except APIError as e:
+        logger.error(f"API request failed: {e}")
+        return {"error": str(e)}

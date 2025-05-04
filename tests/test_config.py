@@ -9,14 +9,6 @@ def test_settings():
     assert settings.server.host is not None
     assert settings.server.port is not None
 
-    assert settings.yaml_config is not None
-    assert len(settings.yaml_config.tools) > 0
-    assert len(settings.yaml_config.prompts) > 0
-
-    assert "rechercher_dans_texte_legal" in settings.yaml_config.tools
-    assert "rechercher_code" in settings.yaml_config.tools
-    assert "rechercher_jurisprudence_judiciaire" in settings.yaml_config.tools
-
 
 def test_logging(tmp_path):
     """Test that the logging system works."""

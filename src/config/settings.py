@@ -9,14 +9,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Base directory for the project
 BASE_DIR = Path(__file__).parent.parent.parent
 
 
@@ -127,20 +124,6 @@ class Settings(BaseModel):
     yaml_config: YamlConfig | None = None
 
 
-def load_yaml_config(config_path: str | Path) -> dict[str, Any]:
-    """
-    Load configuration from a YAML file.
-
-    Args:
-        config_path: Path to the YAML configuration file
-
-    Returns:
-        Dict containing the configuration from the YAML file
-    """
-    with open(config_path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
 def create_settings() -> Settings:
     """
     Create and return the settings object.
@@ -185,14 +168,7 @@ def create_settings() -> Settings:
         ),
     )
 
-    # Load YAML configuration
-    yaml_config_path = Path(__file__).parent / "tools_config.yml"
-    if yaml_config_path.exists():
-        yaml_data = load_yaml_config(yaml_config_path)
-        settings.yaml_config = YamlConfig(**yaml_data)
-
     return settings
 
 
-# Create the settings instance
 settings = create_settings()

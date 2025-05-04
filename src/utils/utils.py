@@ -6,7 +6,10 @@ import asyncio
 from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from typing import Any, TypeVar
+
+import yaml
 
 T = TypeVar("T")
 
@@ -77,3 +80,23 @@ def rate_limit(calls: int, period: float):
         return wrapper
 
     return decorator
+
+
+def load_prompt_templates(template_path: str | Path | None = None) -> dict:
+    """
+    Load prompt templates from a YAML file.
+
+    Args:
+        template_path (str | Path, optional): Path to the YAML template file.
+            If None, uses the default path in the prompts directory.
+
+    Returns:
+        dict: Dictionary containing the prompt templates
+    """
+    if template_path is None:
+        template_path = (
+            Path(__file__).parent.parent / "prompts" / "prompt_templates.yml"
+        )
+
+    with open(template_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
